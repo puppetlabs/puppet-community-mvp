@@ -1,0 +1,118 @@
+#! /usr/bin/env ruby
+
+require 'rubygems'
+require 'optparse'
+require 'yaml'
+require 'fileutils'
+require 'logger'
+
+require 'mvp'
+
+NAME    = File.basename($PROGRAM_NAME)
+options = YAML.load_file(File.expand_path('~/.mvp/config.yaml')) rescue {}
+options[:cachedir]         ||= '~/.mvp/cache'
+options[:forgeapi]         ||= 'https://forgeapi.puppet.com'
+options[:gcloud]           ||= {}
+options[:gcloud][:dataset] ||= 'community'
+options[:gcloud][:project] ||= 'puppet'
+options[:gcloud][:keyfile] ||= '~/.mvp/credentials.json'
+
+optparse = OptionParser.new { |opts|
+  opts.banner = "Usage : #{NAME} [command] [target] [options]
+
+This tool will scrape the Puppet Forge API for interesting module & author stats.
+The following CLI commands are available.
+
+  * get | retrieve | download [target]
+      * Downloads and caches all Forge metadata.
+      * Optional targets: all, authors, modules, releases
+  * upload | insert [target]
+      * Uploads data to BigQuery
+      * Optional targets: all, authors, modules, releases, mirrors
+  * stats
+      * Print out a summary of interesting stats.
+"
+
+  opts.on("-f FORGEAPI", "--forgeapi FORGEAPI", "Forge API server. Rarely needed.") do |arg|
+    options[:forgeapi] = arg
+  end
+
+  opts.on("-c CACHEDIR", "--cachedir CACHEDIR", "Where data should be cached.") do |arg|
+    options[:cachedir] = arg
+  end
+
+  opts.on("-g GITHUB_DATA", "--github_data GITHUB_DATA", "The path to a csv file containing GitHub repos & stars.") do |arg|
+    options[:github_data] = arg
+  end
+
+  opts.on("--project PROJECT", "The gcloud project to use.") do |arg|
+    options[:gcloud][:project] = arg
+  end
+
+  opts.on("--dataset DATASET", "The gcloud dataset to use.") do |arg|
+    options[:gcloud][:dataset] = arg
+  end
+
+  opts.on("--keyfile KEYFILE", "The gcloud keyfile to use.") do |arg|
+    options[:gcloud][:keyfile] = arg
+  end
+
+  opts.on("-o OUTPUT_FILE", "--output_file OUTPUT_FILE", "The path to save a csv report.") do |arg|
+    options[:output_file] = arg
+  end
+
+  opts.on("-d", "--debug", "Display extra debugging information.") do
+    options[:debug] = true
+  end
+
+  opts.separator('')
+
+  opts.on("-h", "--help", "Displays this help") do
+    puts opts
+    exit
+  end
+}
+optparse.parse!
+
+options[:cachedir]         = File.expand_path(options[:cachedir])
+options[:gcloud][:keyfile] = File.expand_path(options[:gcloud][:keyfile])
+FileUtils.mkdir_p(options[:cachedir])
+
+$logger           = Logger::new(STDOUT)
+$logger.level     = options[:debug] ? Logger::DEBUG : Logger::INFO
+$logger.formatter = proc { |severity,datetime,progname,msg| "#{severity}: #{msg}\n" }
+
+require 'mvp'
+
+runner = Mvp::Runner.new(options)
+
+command, target = ARGV
+case command
+when 'get', 'retrieve', 'download'
+  target ||= :all
+  runner.retrieve(target.to_sym)
+
+when 'transform'
+  target ||= :all
+  runner.retrieve(target.to_sym, false)
+
+when 'insert', 'upload'
+  target ||= :all
+  runner.upload(target.to_sym)
+
+when 'mirror'
+  target ||= :all
+  runner.mirror(target.to_sym)
+
+when 'stats'
+  target ||= :all
+  runner.stats(target.to_sym)
+
+when 'test'
+  runner.test
+
+else
+  puts "Unknown command: #{command}"
+  puts "Run #{NAME} -h for usage."
+  exit 1
+end

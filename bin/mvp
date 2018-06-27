@@ -5,18 +5,10 @@ require 'optparse'
 require 'yaml'
 require 'fileutils'
 require 'logger'
-
 require 'mvp'
 
-NAME    = File.basename($PROGRAM_NAME)
-options = YAML.load_file(File.expand_path('~/.mvp/config.yaml')) rescue {}
-options[:cachedir]         ||= '~/.mvp/cache'
-options[:forgeapi]         ||= 'https://forgeapi.puppet.com'
-options[:gcloud]           ||= {}
-options[:gcloud][:dataset] ||= 'community'
-options[:gcloud][:project] ||= 'puppet'
-options[:gcloud][:keyfile] ||= '~/.mvp/credentials.json'
-
+NAME     = File.basename($PROGRAM_NAME)
+options  = {:config => File.expand_path('~/.mvp.config.yaml')}
 optparse = OptionParser.new { |opts|
   opts.banner = "Usage : #{NAME} [command] [target] [options]
 
@@ -37,7 +29,11 @@ The following CLI commands are available.
     options[:forgeapi] = arg
   end
 
-  opts.on("-c CACHEDIR", "--cachedir CACHEDIR", "Where data should be cached.") do |arg|
+  opts.on("-c config", "--config CONFIG", "Location of config.yaml.") do |arg|
+    options[:config] = File.expand_path(arg)
+  end
+
+  opts.on("-C CACHEDIR", "--cachedir CACHEDIR", "Where data should be cached.") do |arg|
     options[:cachedir] = arg
   end
 
@@ -74,15 +70,22 @@ The following CLI commands are available.
 }
 optparse.parse!
 
-options[:cachedir]         = File.expand_path(options[:cachedir])
-options[:gcloud][:keyfile] = File.expand_path(options[:gcloud][:keyfile])
+options = (YAML.load_file(options[:config]) rescue {}).merge(options)
+
+options[:cachedir]         ||= '~/.mvp/cache'
+options[:forgeapi]         ||= 'https://forgeapi.puppet.com'
+options[:gcloud]           ||= {}
+options[:gcloud][:dataset] ||= 'community'
+options[:gcloud][:project] ||= 'puppet'
+options[:gcloud][:keyfile] ||= '~/.mvp/credentials.json'
+
+options[:cachedir]           = File.expand_path(options[:cachedir])
+options[:gcloud][:keyfile]   = File.expand_path(options[:gcloud][:keyfile])
 FileUtils.mkdir_p(options[:cachedir])
 
 $logger           = Logger::new(STDOUT)
 $logger.level     = options[:debug] ? Logger::DEBUG : Logger::INFO
 $logger.formatter = proc { |severity,datetime,progname,msg| "#{severity}: #{msg}\n" }
-
-require 'mvp'
 
 runner = Mvp::Runner.new(options)
 

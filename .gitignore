@@ -1,0 +1,8 @@
+notes/
+.ruby-version
+.rake_t_cache
+Gemfile.lock
+.vagrant/
+/.bundle
+spec/fixtures
+*.gem

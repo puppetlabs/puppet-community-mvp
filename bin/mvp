@@ -8,7 +8,7 @@ require 'logger'
 require 'mvp'
 
 NAME     = File.basename($PROGRAM_NAME)
-options  = {:config => File.expand_path('~/.mvp.config.yaml')}
+options  = {:config => File.expand_path('~/.mvp/config.yaml')}
 optparse = OptionParser.new { |opts|
   opts.banner = "Usage : #{NAME} [command] [target] [options]
 
@@ -21,6 +21,9 @@ The following CLI commands are available.
   * upload | insert [target]
       * Uploads data to BigQuery
       * Optional targets: all, authors, modules, releases, mirrors
+  * mirror [target]
+      * Runs the download & then upload tasks.
+      * Optional targets: all, authors, modules, releases
   * stats
       * Print out a summary of interesting stats.
 "
@@ -80,6 +83,7 @@ options[:gcloud][:project] ||= 'puppet'
 options[:gcloud][:keyfile] ||= '~/.mvp/credentials.json'
 
 options[:cachedir]           = File.expand_path(options[:cachedir])
+options[:github_data]        = File.expand_path(options[:github_data])
 options[:gcloud][:keyfile]   = File.expand_path(options[:gcloud][:keyfile])
 FileUtils.mkdir_p(options[:cachedir])
 

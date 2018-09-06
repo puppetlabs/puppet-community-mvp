@@ -26,15 +26,26 @@ class Mvp
     def upload(target = :all)
       uploader = Mvp::Uploader.new(@options)
 
-      [:authors, :modules, :releases, :validations, :mirrors].each do |thing|
+      [:authors, :modules, :releases, :validations, :github_mirrors].each do |thing|
         next unless [:all, thing].include? target
         uploader.send(thing)
       end
     end
 
     def mirror(target = :all)
-      retrieve(target)
-      upload(target)
+      downloader = Mvp::Downloader.new(@options)
+      uploader   = Mvp::Uploader.new(@options)
+
+      # validations are downloaded with modules
+      [:authors, :modules, :releases].each do |thing|
+        next unless [:all, thing].include? target
+          uploader.truncate(thing)
+          downloader.mirror(thing, uploader)
+      end
+
+      if [:all, :mirrors].include? target
+        uploader.github_mirrors()
+      end
     end
 
     def stats(target)

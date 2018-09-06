@@ -7,15 +7,35 @@ require 'mvp/monkeypatches'
 class Mvp
   class Downloader
     def initialize(options = {})
-      @cachedir = options[:cachedir]
-      @forgeapi = options[:forgeapi] ||'https://forgeapi.puppet.com'
+      @useragent = 'Puppet Community Stats Monitor'
+      @cachedir  = options[:cachedir]
+      @forgeapi  = options[:forgeapi] ||'https://forgeapi.puppet.com'
+    end
+
+    def mirror(entity, uploader)
+      # using authors for git repo terminology consistency
+      item = (entity == :authors) ? 'users' : entity.to_s
+      download(item) do |data|
+        case entity
+        when :modules
+          uploader.insert(:validations, flatten_validations(retrieve_validations(data)))
+          data = flatten_modules(data)
+        when :releases
+          data = flatten_releases(data)
+        end
+
+        uploader.insert(entity, data)
+      end
     end
 
     def retrieve(entity, download = true)
       if download
         # I am focusing on authorship rather than just users, so for now I'm using the word authors
         item = (entity == :authors) ? 'users' : entity.to_s
-        data = download(item)
+        data = []
+        download(item) do |resp|
+          data.concat resp
+        end
         save_json(entity, data)
       else
         data = File.read("#{@cachedir}/#{entity}.json")
@@ -30,9 +50,35 @@ class Mvp
       save_nld_json(entity.to_s, data)
     end
 
-    def validations()
+    def retrieve_validations(modules, period = 25)
       results = {}
-      cache   = "#{@cachedir}/modules.json"
+
+      begin
+        offset   = 0
+        endpoint = "/private/validations/"
+        modules.each do |mod|
+          name = "#{mod['owner']['username']}-#{mod['name']}"
+          response = HTTParty.get("#{@forgeapi}#{endpoint}#{name}", headers: {'User-Agent' => @useragent})
+          raise "Forge Error: #{@response.body}" unless response.code == 200
+
+          results[name] = JSON.parse(response.body)
+          offset       += 1
+
+          if block_given? and (offset % period == 0)
+            yield offset
+            GC.start
+          end
+        end
+      rescue => e
+        $logger.error e.message
+        $logger.debug e.backtrace.join("\n")
+      end
+
+      results
+    end
+
+    def validations()
+      cache = "#{@cachedir}/modules.json"
 
       if File.exist? cache
         module_data = JSON.parse(File.read(cache))
@@ -41,22 +87,12 @@ class Mvp
       end
 
       begin
-        offset   = 0
-        endpoint = "/private/validations/"
-        spinner  = TTY::Spinner.new("[:spinner] :title")
+        spinner = TTY::Spinner.new("[:spinner] :title")
         spinner.update(title: "Downloading module validations ...")
         spinner.auto_spin
 
-        module_data.each do |mod|
-          name = "#{mod['owner']['username']}-#{mod['name']}"
-          response = HTTParty.get("#{@forgeapi}#{endpoint}#{name}", headers: {"User-Agent" => "Puppet Community Stats Monitor"})
-          raise "Forge Error: #{@response.body}" unless response.code == 200
-
-          data          = JSON.parse(response.body)
-          offset       += 1
-          results[name] = data
-
-          spinner.update(title: "Downloading module validations [#{offset}]...") if (offset % 25 == 0)
+        results = retrieve_validations(module_data) do |offset|
+          spinner.update(title: "Downloading module validations [#{offset}]...")
         end
 
         spinner.success('(OK)')
@@ -72,7 +108,7 @@ class Mvp
     end
 
     def download(entity)
-      results = []
+       raise 'Please process downloaded data by passing a block' unless block_given?
 
       begin
         offset   = 0
@@ -82,15 +118,19 @@ class Mvp
         spinner.auto_spin
 
         while endpoint do
-          response = HTTParty.get("#{@forgeapi}#{endpoint}", headers: {"User-Agent" => "Puppet Community Stats Monitor"})
+          response = HTTParty.get("#{@forgeapi}#{endpoint}", headers: {"User-Agent" => @useragent})
           raise "Forge Error: #{@response.body}" unless response.code == 200
-
           data = JSON.parse(response.body)
+
           offset  += 50
-          results += data['results']
           endpoint = data['pagination']['next']
 
-          spinner.update(title: "Downloading #{entity} [#{offset}]...") if (endpoint and (offset % 250 == 0))
+          yield munge_dates(data['results'])
+
+          if (endpoint and (offset % 250 == 0))
+            spinner.update(title: "Downloading #{entity} [#{offset}]...")
+            GC.start
+          end
         end
 
         spinner.success('(OK)')
@@ -100,7 +140,7 @@ class Mvp
         $logger.debug e.backtrace.join("\n")
       end
 
-      munge_dates(results)
+      nil
     end
 
     # transform dates into a format that bigquery knows
@@ -138,7 +178,7 @@ class Mvp
         row['source']            = row['current_release']['metadata']['source']
         row['project_page']      = row['current_release']['metadata']['project_page']
         row['issues_url']        = row['current_release']['metadata']['issues_url']
-        row['tasks']             = row['current_release']['tasks'].map{|task| task['name']}
+        row['tasks']             = row['current_release']['tasks'].map{|task| task['name']} rescue []
 
         row['release_count']     = row['releases'].count rescue 0
         row['releases']          = row['releases'].map{|r| r['version']} rescue []
@@ -152,12 +192,12 @@ class Mvp
     def flatten_releases(data)
       data.each do |row|
         row['name']              = row['module']['name']
-        row['owner']             = row['module']['username']
+        row['owner']             = row['module']['owner']['username']
         row['license']           = row['metadata']['license']
         row['source']            = row['metadata']['source']
         row['project_page']      = row['metadata']['project_page']
         row['issues_url']        = row['metadata']['issues_url']
-        row['tasks']             = row['tasks'].map{|task| task['name']}
+        row['tasks']             = row['tasks'].map{|task| task['name']} rescue []
 
         simplify_metadata(row, row['metadata'])
         row.delete('module')
@@ -176,8 +216,8 @@ class Mvp
     end
 
     def simplify_metadata(data, metadata)
-      data['operatingsystem']   = metadata['operatingsystem_support'].map{|i| i['operatingsystem']}                       rescue nil
-      data['dependencies']      = metadata['dependencies'].map{|i| i['name']}                                             rescue nil
+      data['operatingsystem']   = metadata['operatingsystem_support'].map{|i| i['operatingsystem']}                       rescue []
+      data['dependencies']      = metadata['dependencies'].map{|i| i['name'].sub('/', '-')}                               rescue []
       data['puppet_range']      = metadata['requirements'].select{|r| r['name'] == 'puppet'}.first['version_requirement'] rescue nil
       data['metadata']          = metadata.to_json
 

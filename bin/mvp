@@ -76,6 +76,7 @@ optparse.parse!
 options = (YAML.load_file(options[:config]) rescue {}).merge(options)
 
 options[:cachedir]         ||= '~/.mvp/cache'
+options[:github_data]      ||= '~/.mvp/github_modules.csv'
 options[:forgeapi]         ||= 'https://forgeapi.puppet.com'
 options[:gcloud]           ||= {}
 options[:gcloud][:dataset] ||= 'community'

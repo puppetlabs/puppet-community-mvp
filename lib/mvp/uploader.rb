@@ -14,6 +14,19 @@ class Mvp
       @dataset = @bigquery.dataset(options[:gcloud][:dataset])
 
       raise "\nThere is a problem with the gCloud configuration: \n #{JSON.pretty_generate(options)}" if @dataset.nil?
+
+      @itemized = @dataset.table('forge_itemized') || @dataset.create_table('forge_itemized') do |table|
+                                                        table.name        = 'Itemied dependencies between modules'
+                                                        table.description = 'A list of all types/classes/functions used by each module and where they come from'
+                                                        table.schema do |s|
+                                                          s.string  "module",  mode: :required
+                                                          s.string  "version", mode: :required
+                                                          s.string  "source"
+                                                          s.string  "kind",    mode: :required
+                                                          s.string  "element", mode: :required
+                                                          s.integer "count",   mode: :required
+                                                        end
+                                                      end
     end
 
     def truncate(entity)
@@ -72,6 +85,7 @@ class Mvp
               s.boolean   "puppet_4x"
               s.boolean   "puppet_5x"
               s.boolean   "puppet_6x"
+              s.boolean   "puppet_99x"
               s.string    "superseded_by"
               s.string    "deprecated_for"
               s.timestamp "deprecated_at"
@@ -127,6 +141,7 @@ class Mvp
               s.boolean   "puppet_4x"
               s.boolean   "puppet_5x"
               s.boolean   "puppet_6x"
+              s.boolean   "puppet_99x"
               s.string    "dependencies",     mode: :repeated
               s.string    "file_uri",         mode: :required
               s.string    "file_md5",         mode: :required
@@ -237,6 +252,13 @@ class Mvp
         spinner.error("(Google Cloud error: #{e.message})")
         $logger.error e.backtrace.join("\n")
       end
+    end
+
+    def version_itemized?(mod, version)
+      str = "SELECT version FROM forge_itemized WHERE name = '#{mod}' UNIQUE"
+      versions = @dataset.query(str).map {|row| row[:version] } rescue []
+
+      versions.include? version
     end
 
     def test()

@@ -3,6 +3,7 @@ require 'httparty'
 require 'tty-spinner'
 require 'semantic_puppet'
 require 'mvp/monkeypatches'
+require 'mvp/itemizer'
 
 class Mvp
   class Downloader
@@ -10,6 +11,7 @@ class Mvp
       @useragent = 'Puppet Community Stats Monitor'
       @cachedir  = options[:cachedir]
       @forgeapi  = options[:forgeapi] ||'https://forgeapi.puppet.com'
+      @itemizer  = Mvp::Itemizer.new(options)
     end
 
     def mirror(entity, uploader)
@@ -20,6 +22,8 @@ class Mvp
         when :modules
           uploader.insert(:validations, flatten_validations(retrieve_validations(data)))
           data = flatten_modules(data)
+
+          @itemizer.run!(data, uploader)
         when :releases
           data = flatten_releases(data)
         end
@@ -228,6 +232,7 @@ class Mvp
         data['puppet_4x']       = range.include? SemanticPuppet::Version.parse('4.99.99')
         data['puppet_5x']       = range.include? SemanticPuppet::Version.parse('5.99.99')
         data['puppet_6x']       = range.include? SemanticPuppet::Version.parse('6.99.99')
+        data['puppet_99x']      = range.include? SemanticPuppet::Version.parse('99.99.99')  # identify unbounded ranges
       end
     end
 

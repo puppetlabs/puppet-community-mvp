@@ -16,8 +16,10 @@ class Mvp
         version = mod['version']
         return if uploader.version_itemized?(modname, version)
 
+        $logger.debug "Itemizing #{modname}-#{version}"
         begin
-          uploader.insert(:itemized, table(itemize(modname, version), mod))
+          rows = table(itemize(modname, version), mod)
+          uploader.insert(:itemized, rows) unless rows.empty?
         rescue => e
           $logger.error e.message
           $logger.debug e.backtrace.join("\n")
@@ -62,7 +64,8 @@ class Mvp
 
       itemized.map do |kind, elements|
         # the kind of element comes pluralized from puppet-itemize
-        kind = kind.to_s.chomp('s')
+        kind = kind.to_s
+        kind = kind.end_with?('ses') ? kind.chomp('es') : kind.chomp('s')
         elements.map do |name, count|
           # TODO: this may suffer from collisions, (module foo, function foo, for example)
           depname = name.split('::').first

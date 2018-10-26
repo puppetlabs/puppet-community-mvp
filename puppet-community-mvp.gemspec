@@ -20,6 +20,7 @@ Gem::Specification.new do |s|
   s.add_dependency      "httparty"
   s.add_dependency      "tty-spinner"
   s.add_dependency      "google-cloud"
+  s.add_dependency      "puppet-itemize"
 
   s.description       = <<-desc
   Nothing exciting. Just gathers stats about the Puppet Community. Currently

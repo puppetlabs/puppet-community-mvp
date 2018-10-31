@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name              = "puppet-community-mvp"
-  s.version           = "0.0.3"
+  s.version           = "0.0.4"
   s.date              = Date.today.to_s
   s.summary           = "Generate some stats about the Puppet Community."
   s.license           = 'Apache 2'
@@ -19,7 +19,7 @@ Gem::Specification.new do |s|
   s.add_dependency      "semantic_puppet"
   s.add_dependency      "httparty"
   s.add_dependency      "tty-spinner"
-  s.add_dependency      "google-cloud"
+  s.add_dependency      "google-cloud-bigquery"
   s.add_dependency      "puppet-itemize"
 
   s.description       = <<-desc

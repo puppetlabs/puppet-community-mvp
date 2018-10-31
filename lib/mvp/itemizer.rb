@@ -58,7 +58,8 @@ class Mvp
     # Build a table with this schema
     # module | version | source | kind | element | count
     def table(itemized, data)
-      modname      = data['slug']
+      modname      = data['name']
+      slug         = data['slug']
       version      = data['version']
       dependencies = data['dependencies']
 
@@ -67,11 +68,21 @@ class Mvp
         kind = kind.to_s
         kind = kind.end_with?('ses') ? kind.chomp('es') : kind.chomp('s')
         elements.map do |name, count|
-          # TODO: this may suffer from collisions, (module foo, function foo, for example)
-          depname = name.split('::').first
+          if name == modname
+            depname = name
+          else
+            # This relies on a little guesswork.
+            segments = name.split('::')                       # First see if its already namespaced and we can just use it
+            segments = name.split('_') if segments.size == 1  # If not, then maybe it follows the pattern like 'mysql_password'
+            depname  = segments.first
+          end
+
+          # There's a chance of collisions here. For example, if you depended on a module
+          # named 'foobar-notify' and you used a 'notify' resource, then the resource would
+          # be improperly linked to that module. That's a pretty small edge case though.
           source  = dependencies.find {|row| row.split('-').last == depname} rescue nil
 
-          { :module => modname, :version => version, :source => source, :kind => kind, :element => name, :count => count }
+          { :module => slug, :version => version, :source => source, :kind => kind, :element => name, :count => count }
         end
       end.flatten(1)
     end

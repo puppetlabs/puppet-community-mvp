@@ -16,7 +16,7 @@ class Mvp
       raise "\nThere is a problem with the gCloud configuration: \n #{JSON.pretty_generate(options)}" if @dataset.nil?
 
       @itemized = @dataset.table('forge_itemized') || @dataset.create_table('forge_itemized') do |table|
-                                                        table.name        = 'Itemied dependencies between modules'
+                                                        table.name        = 'Itemized dependencies between modules'
                                                         table.description = 'A list of all types/classes/functions used by each module and where they come from'
                                                         table.schema do |s|
                                                           s.string  "module",  mode: :required
@@ -255,7 +255,7 @@ class Mvp
     end
 
     def version_itemized?(mod, version)
-      str = "SELECT version FROM forge_itemized WHERE name = '#{mod}' UNIQUE"
+      str = "SELECT DISTINCT version FROM forge_itemized WHERE module = '#{mod}'"
       versions = @dataset.query(str).map {|row| row[:version] } rescue []
 
       versions.include? version

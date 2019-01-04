@@ -13,13 +13,14 @@ optparse = OptionParser.new { |opts|
   opts.banner = "Usage : #{NAME} [command] [target] [options]
 
 This tool will scrape the Puppet Forge API for interesting module & author stats.
-The following CLI commands are available.
+It can also mirror public BigQuery tables or views into our dataset for efficiency,
+or download and itemize each Forge module.
 
-  * get | retrieve | download [target]
-      * Downloads and caches all Forge metadata.
-      * Optional targets: all, authors, modules, releases
   * mirror [target]
       * Runs the download & then upload tasks.
+      * Optional targets: all, authors, modules, releases, validations, itemizations, tables
+  * get | retrieve | download [target]
+      * Downloads and caches data locally so you can run the stats task.
       * Optional targets: all, authors, modules, releases
   * stats
       * Print out a summary of interesting stats.

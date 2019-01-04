@@ -2,150 +2,81 @@ require 'json'
 require 'httparty'
 require 'tty-spinner'
 require 'semantic_puppet'
-require 'mvp/monkeypatches'
-require 'mvp/itemizer'
 
 class Mvp
-  class Downloader
+  class Forge
     def initialize(options = {})
       @useragent = 'Puppet Community Stats Monitor'
-      @cachedir  = options[:cachedir]
       @forgeapi  = options[:forgeapi] ||'https://forgeapi.puppet.com'
-      @itemizer  = Mvp::Itemizer.new(options)
     end
 
-    def mirror(entity, uploader)
+    def retrieve(entity)
+      raise 'Please process downloaded data by passing a block' unless block_given?
+
       # using authors for git repo terminology consistency
-      item = (entity == :authors) ? 'users' : entity.to_s
-      download(item) do |data|
-        case entity
-        when :modules
-          uploader.insert(:validations, flatten_validations(retrieve_validations(data)))
-          data = flatten_modules(data)
-
-          @itemizer.run!(data, uploader)
-        when :releases
-          data = flatten_releases(data)
-        end
-
-        uploader.insert(entity, data)
-      end
-    end
-
-    def retrieve(entity, download = true)
-      if download
-        # I am focusing on authorship rather than just users, so for now I'm using the word authors
-        item = (entity == :authors) ? 'users' : entity.to_s
-        data = []
-        download(item) do |resp|
-          data.concat resp
-        end
-        save_json(entity, data)
-      else
-        data = File.read("#{@cachedir}/#{entity}.json")
-      end
-
-      case entity
-      when :modules
-        data = flatten_modules(data)
-      when :releases
-        data = flatten_releases(data)
-      end
-      save_nld_json(entity.to_s, data)
-    end
-
-    def retrieve_validations(modules, period = 25)
-      results = {}
-
-      begin
-        offset   = 0
-        endpoint = "/private/validations/"
-        modules.each do |mod|
-          name = "#{mod['owner']['username']}-#{mod['name']}"
-          response = HTTParty.get("#{@forgeapi}#{endpoint}#{name}", headers: {'User-Agent' => @useragent})
-          raise "Forge Error: #{@response.body}" unless response.code == 200
-
-          results[name] = JSON.parse(response.body)
-          offset       += 1
-
-          if block_given? and (offset % period == 0)
-            yield offset
-            GC.start
-          end
-        end
-      rescue => e
-        $logger.error e.message
-        $logger.debug e.backtrace.join("\n")
-      end
-
-      results
-    end
-
-    def validations()
-      cache = "#{@cachedir}/modules.json"
-
-      if File.exist? cache
-        module_data = JSON.parse(File.read(cache))
-      else
-        module_data = retrieve(:modules)
-      end
-
-      begin
-        spinner = TTY::Spinner.new("[:spinner] :title")
-        spinner.update(title: "Downloading module validations ...")
-        spinner.auto_spin
-
-        results = retrieve_validations(module_data) do |offset|
-          spinner.update(title: "Downloading module validations [#{offset}]...")
-        end
-
-        spinner.success('(OK)')
-      rescue => e
-        spinner.error('API error')
-        $logger.error e.message
-        $logger.debug e.backtrace.join("\n")
-      end
-
-      save_json('validations', results)
-      save_nld_json('validations', flatten_validations(results))
-      results
-    end
-
-    def download(entity)
-       raise 'Please process downloaded data by passing a block' unless block_given?
-
+      entity = :users if entity == :authors
       begin
         offset   = 0
         endpoint = "/v3/#{entity}?sort_by=downloads&limit=50"
-        spinner  = TTY::Spinner.new("[:spinner] :title")
-        spinner.update(title: "Downloading #{entity} ...")
-        spinner.auto_spin
 
         while endpoint do
           response = HTTParty.get("#{@forgeapi}#{endpoint}", headers: {"User-Agent" => @useragent})
           raise "Forge Error: #{@response.body}" unless response.code == 200
-          data = JSON.parse(response.body)
+          data    = JSON.parse(response.body)
+          results = munge_dates(data['results'])
+
+          case entity
+          when :modules
+            results = flatten_modules(results)
+          when :releases
+            results = flatten_releases(results)
+          end
+
+          yield results, offset
 
           offset  += 50
           endpoint = data['pagination']['next']
-
-          yield munge_dates(data['results'])
-
           if (endpoint and (offset % 250 == 0))
-            spinner.update(title: "Downloading #{entity} [#{offset}]...")
             GC.start
           end
         end
 
-        spinner.success('(OK)')
       rescue => e
-        spinner.error('API error')
         $logger.error e.message
         $logger.debug e.backtrace.join("\n")
       end
 
       nil
     end
+
+    def retrieve_validations(modules, period = 25)
+      raise 'Please process validations by passing a block' unless block_given?
+
+      offset = 0
+      begin
+        modules.each_slice(period) do |group|
+          offset += period
+          results = group.map { |mod| validations(mod[:slug]) }
+
+          yield results, offset
+          GC.start
+        end
+      rescue => e
+        $logger.error e.message
+        $logger.debug e.backtrace.join("\n")
+      end
+
+      nil
+    end
+
+    def validations(name)
+      endpoint = "/private/validations/"
+      response = HTTParty.get("#{@forgeapi}#{endpoint}#{name}", headers: {'User-Agent' => @useragent})
+      raise "Forge Error: #{@response.body}" unless response.code == 200
+
+      flatten_validations(name, JSON.parse(response.body))
+    end
+
 
     # transform dates into a format that bigquery knows
     def munge_dates(object)
@@ -158,16 +89,6 @@ class Mvp
         end
       end
       object
-    end
-
-    def save_json(thing, data)
-      File.write("#{@cachedir}/#{thing}.json", data.to_json)
-    end
-
-    # store data in a way that bigquery can grok
-    # uploading files is far easier than streaming data, when replacing a dataset
-    def save_nld_json(thing, data)
-      File.write("#{@cachedir}/nld_#{thing}.json", data.to_newline_delimited_json)
     end
 
     def flatten_modules(data)
@@ -209,14 +130,12 @@ class Mvp
       data
     end
 
-    def flatten_validations(data)
-      data.map do |name, scores|
-        row = { 'name' => name }
-        scores.each do |entry|
-          row[entry['name']] = entry['score']
-        end
-        row
+    def flatten_validations(name, scores)
+      row = { 'name' => name }
+      scores.each do |entry|
+        row[entry['name']] = entry['score']
       end
+      row
     end
 
     def simplify_metadata(data, metadata)

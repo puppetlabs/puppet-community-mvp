@@ -13,16 +13,14 @@ optparse = OptionParser.new { |opts|
   opts.banner = "Usage : #{NAME} [command] [target] [options]
 
 This tool will scrape the Puppet Forge API for interesting module & author stats.
-The following CLI commands are available.
+It can also mirror public BigQuery tables or views into our dataset for efficiency,
+or download and itemize each Forge module.
 
-  * get | retrieve | download [target]
-      * Downloads and caches all Forge metadata.
-      * Optional targets: all, authors, modules, releases
-  * upload | insert [target]
-      * Uploads data to BigQuery
-      * Optional targets: all, authors, modules, releases, mirrors
   * mirror [target]
       * Runs the download & then upload tasks.
+      * Optional targets: all, authors, modules, releases, validations, itemizations, tables
+  * get | retrieve | download [target]
+      * Downloads and caches data locally so you can run the stats task.
       * Optional targets: all, authors, modules, releases
   * stats
       * Print out a summary of interesting stats.
@@ -64,6 +62,10 @@ The following CLI commands are available.
     options[:debug] = true
   end
 
+  opts.on("-n", "--noop", "Don't actually upload data.") do
+    options[:noop] = true
+  end
+
   opts.separator('')
 
   opts.on("-h", "--help", "Displays this help") do
@@ -99,14 +101,6 @@ case command
 when 'get', 'retrieve', 'download'
   target ||= :all
   runner.retrieve(target.to_sym)
-
-when 'transform'
-  target ||= :all
-  runner.retrieve(target.to_sym, false)
-
-when 'insert', 'upload'
-  target ||= :all
-  runner.upload(target.to_sym)
 
 when 'mirror'
   target ||= :all

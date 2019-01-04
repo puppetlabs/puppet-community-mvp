@@ -27,6 +27,14 @@ class Mvp
       end
     end
 
+    def itemized(mod)
+      modname = mod[:slug]
+      version = mod[:version]
+      baserow = { :module => modname, :version => version, :kind => 'admin', :element => 'version', :count => 0}
+
+      table(itemize(modname, version), mod) << baserow
+    end
+
     def download(path, modname, version)
       filename = "#{modname}-#{version}.tar.gz"
       Dir.chdir(path) do
@@ -58,10 +66,10 @@ class Mvp
     # Build a table with this schema
     # module | version | source | kind | element | count
     def table(itemized, data)
-      modname      = data['name']
-      slug         = data['slug']
-      version      = data['version']
-      dependencies = data['dependencies']
+      modname      = data[:name]
+      slug         = data[:slug]
+      version      = data[:version]
+      dependencies = data[:dependencies]
 
       itemized.map do |kind, elements|
         # the kind of element comes pluralized from puppet-itemize

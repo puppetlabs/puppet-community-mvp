@@ -3,10 +3,10 @@ require 'tty-spinner'
 require "google/cloud/bigquery"
 
 class Mvp
-  class Uploader
+  class Bigquery
     def initialize(options = {})
+      @options  = options
       @cachedir = options[:cachedir]
-      @mirrors  = options[:gcloud][:mirrors]
       @bigquery = Google::Cloud::Bigquery.new(
         :project_id  => options[:gcloud][:project],
         :credentials => Google::Cloud::Bigquery::Credentials.new(options[:gcloud][:keyfile]),
@@ -30,6 +30,8 @@ class Mvp
     end
 
     def truncate(entity)
+      return if @options[:noop]
+
       begin
         case entity
         when :authors
@@ -163,55 +165,39 @@ class Mvp
       end
     end
 
-    def authors()
-      upload('authors')
+    def retrieve(entity)
+      get(entity, ['*'])
     end
 
-    def modules()
-      upload('modules')
-    end
+    def mirror_table(entity)
+      return if @options[:noop]
 
-    def releases()
-      upload('releases')
-    end
+      begin
+        case entity[:type]
+        when :view
+          @dataset.table(entity[:name]).delete rescue nil # delete if exists
+          @dataset.create_view(entity[:name], entity[:query],
+                                :legacy_sql => true)
 
-    def validations()
-      upload('validations')
-    end
+        when :table
+          job = @dataset.query_job(entity[:query],
+                                :legacy_sql => true,
+                                :write      => 'truncate',
+                                :table      => @dataset.table(entity[:name], :skip_lookup => true))
+          job.wait_until_done!
 
-    def github_mirrors()
-      @mirrors.each do |entity|
-        begin
-          spinner = TTY::Spinner.new("[:spinner] :title")
-          spinner.update(title: "Mirroring #{entity[:type]} #{entity[:name]} to BigQuery...")
-          spinner.auto_spin
-
-          case entity[:type]
-          when :view
-            @dataset.table(entity[:name]).delete rescue nil # delete if exists
-            @dataset.create_view(entity[:name], entity[:query],
-                                  :legacy_sql => true)
-
-          when :table
-            job = @dataset.query_job(entity[:query],
-                                  :legacy_sql => true,
-                                  :write      => 'truncate',
-                                  :table      => @dataset.table(entity[:name], :skip_lookup => true))
-            job.wait_until_done!
-
-          else
-            $logger.error "Unknown mirror type: #{entity[:type]}"
-          end
-
-          spinner.success('(OK)')
-        rescue => e
-          spinner.error("(Google Cloud error: #{e.message})")
-          $logger.error e.backtrace.join("\n")
+        else
+          $logger.error "Unknown mirror type: #{entity[:type]}"
         end
+      rescue => e
+        $logger.error("(Google Cloud error: #{e.message})")
+        $logger.debug e.backtrace.join("\n")
       end
     end
 
     def insert(entity, data)
+      return if @options[:noop]
+
       table    = @dataset.table("forge_#{entity}")
       response = table.insert(data)
 
@@ -224,34 +210,20 @@ class Mvp
       end
     end
 
-    def upload(entity)
-      begin
-        spinner = TTY::Spinner.new("[:spinner] :title")
-        spinner.update(title: "Uploading #{entity} to BigQuery ...")
-        spinner.auto_spin
+    def get(entity, fields)
+      raise 'pass fields as an array' unless fields.is_a? Array
+      @dataset.query("SELECT #{fields.join(', ')} FROM forge_#{entity}")
+    end
 
-        @dataset.load("forge_#{entity}", "#{@cachedir}/nld_#{entity}.json",
-                        :write      => 'truncate',
-                        :autodetect => true)
-
-#         table = @dataset.table("forge_#{entity}")
-#         File.readlines("#{@cachedir}/nld_#{entity}.json").each do |line|
-#           data = JSON.parse(line)
-#
-#           begin
-#             table.insert data
-#           rescue
-#             require 'pry'
-#             binding.pry
-#           end
-#         end
-
-
-        spinner.success('(OK)')
-      rescue => e
-        spinner.error("(Google Cloud error: #{e.message})")
-        $logger.error e.backtrace.join("\n")
-      end
+    def unitemized()
+      sql = 'SELECT m.name, m.slug, m.version, m.dependencies
+              FROM forge_modules AS m
+              WHERE m.version NOT IN (
+                SELECT i.version
+                FROM forge_itemized AS i
+                WHERE module = m.slug
+              )'
+      @dataset.query(sql)
     end
 
     def version_itemized?(mod, version)

@@ -156,6 +156,21 @@ class Mvp
             end
           end
 
+          when :puppetfile_usage
+          @dataset.table('github_puppetfile_usage').delete rescue nil
+          @dataset.create_table('github_puppetfile_usage') do |table|
+            table.name        = 'Puppetfile Module Usage'
+            table.description = 'A list of all modules referenced in public Puppetfiles'
+            table.schema do |s|
+              s.string    "repo",      mode: :required
+              s.string    "module",    mode: :required
+              s.string    "type",      mode: :required
+              s.string    "source",    mode: :required
+              s.string    "ref",
+              s.string    "version",   mode: :required
+            end
+          end
+
           sleep 5 # this allows BigQuery time to flush schema changes
         end
       rescue => e

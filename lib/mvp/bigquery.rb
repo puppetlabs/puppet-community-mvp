@@ -210,6 +210,10 @@ class Mvp
       end
     end
 
+    def delete(entity, field, match)
+      @dataset.query("DELETE FROM forge_#{entity} WHERE #{field} = '#{match}'")
+    end
+
     def get(entity, fields)
       raise 'pass fields as an array' unless fields.is_a? Array
       @dataset.query("SELECT #{fields.join(', ')} FROM forge_#{entity}")

@@ -66,6 +66,7 @@ class Mvp
           bigquery.unitemized.each do |mod|
             spinner.update(title: "Itemizing [#{mod[:slug]}]...")
             rows = itemizer.itemized(mod)
+            bigquery.delete(:itemized, :module, mod[:slug])
             bigquery.insert(:itemized, rows)
           end
           spinner.success('(OK)')

@@ -166,7 +166,6 @@ class Mvp
               s.string    "module",    mode: :required
               s.string    "type",      mode: :required
               s.string    "source",    mode: :required
-              s.string    "ref",
               s.string    "version",   mode: :required
             end
           end
@@ -228,6 +227,18 @@ class Mvp
     def get(entity, fields)
       raise 'pass fields as an array' unless fields.is_a? Array
       @dataset.query("SELECT #{fields.join(', ')} FROM forge_#{entity}")
+    end
+
+    def puppetfiles()
+      sql = 'SELECT f.repo_name, f.path, c.content
+                FROM github_puppetfile_files AS f
+                JOIN github_puppetfile_contents AS c
+                  ON c.id = f.id
+
+              WHERE f.path = "Puppetfile"
+
+              LIMIT 10'
+      @dataset.query(sql)
     end
 
     def unitemized()

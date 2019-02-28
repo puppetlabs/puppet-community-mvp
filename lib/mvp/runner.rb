@@ -2,6 +2,7 @@ require 'mvp/forge'
 require 'mvp/bigquery'
 require 'mvp/stats'
 require 'mvp/itemizer'
+require 'mvp/puppetfile_parser'
 
 require 'tty-spinner'
 
@@ -37,6 +38,7 @@ class Mvp
       forge    = Mvp::Forge.new(@options)
       bigquery = Mvp::Bigquery.new(@options)
       itemizer = Mvp::Itemizer.new(@options)
+      pfparser = Mvp::PuppetfileParser.new(@options)
 
       begin
         [:authors, :modules, :releases].each do |thing|
@@ -67,6 +69,16 @@ class Mvp
             spinner.update(title: "Itemizing [#{mod[:slug]}]...")
             rows = itemizer.itemized(mod)
             bigquery.insert(:itemized, rows)
+          end
+          spinner.success('(OK)')
+        end
+
+        if [:all, :puppetfiles].include? target
+          spinner = mkspinner("Analyzing Puppetfile module references...")
+          bigquery.puppetfiles.each do |repo|
+            spinner.update(title: "Analyzing [#{repo[:repo_name]}/Puppetfile]...")
+            rows = pfparser.parse(repo[:content])
+            bigquery.insert(:puppetfile_usage, rows)
           end
           spinner.success('(OK)')
         end

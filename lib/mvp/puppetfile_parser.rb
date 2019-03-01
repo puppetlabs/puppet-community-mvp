@@ -2,22 +2,33 @@ class Mvp
   class PuppetfileParser
     def initialize(options = {})
       @modules = []
+      @repo    = nil
     end
 
-    def parse(puppetfile)
+    def parse(repo)
       # This only works on Ruby 2.6+
       return unless defined?(RubyVM::AbstractSyntaxTree)
 
-      root = RubyVM::AbstractSyntaxTree.parse(puppetfile)
+      begin
+        root = RubyVM::AbstractSyntaxTree.parse(repo[:content])
+      rescue SyntaxError => e
+        $logger.warn "Syntax error in #{repo[:repo_name]}/Puppetfile"
+        $logger.warn e.message
+      end
 
+      @repo    = repo
       @modules = []
       traverse(root)
-      @modules.compact
+      @modules.compact.map do |row|
+        row[:repo_name] = repo[:repo_name]
+        row[:md5]       = repo[:md5]
+        row
+      end
     end
 
     def add_module(name, args)
       case args
-      when String, Symbol
+      when String, Symbol, NilClass
         @modules << {
           :module  => name,
           :type    => :forge,
@@ -27,7 +38,7 @@ class Mvp
       when Hash
         @modules << parse_args(name, args)
       else
-        $logger.warn "Unknown Puppetfile format: mod('#{name}', #{args.inspect})"
+        $logger.warn "#{@repo[:repo_name]}/Puppetfile: Unknown format: mod('#{name}', #{args.inspect})"
       end
     end
 
@@ -42,8 +53,12 @@ class Mvp
         data[:type]    = :svn
         data[:source]  = args[:svn]
         data[:version] = args[:rev] || args[:revision] || :latest
+      elsif args.include? :boxen
+        data[:type]    = :boxen
+        data[:source]  = args[:repo]
+        data[:version] = args[:version] || :latest
       else
-        $logger.warn "Unknown Puppetfile format: mod('#{name}', #{args.inspect})"
+        $logger.warn "#{@repo[:repo_name]}/Puppetfile: Unknown args format: mod('#{name}', #{args.inspect})"
         return nil
       end
 
@@ -72,10 +87,25 @@ class Mvp
             # noop
           when :moduledir
             # noop
+          when :github
+            # oh boxen, you so silly.
+            # The order of the unpacking below *is* important.
+            name    = args.shift
+            version = args.shift
+            data    = args.shift || {}
+
+            # this is gross but I'm not sure I actually care right now.
+            if (name.is_a? String and [String, NilClass].include? version.class and data.is_a? Hash)
+              data[:boxen]   = :boxen
+              data[:version] = version
+              add_module(name, data)
+            else
+              $logger.warn "#{@repo[:repo_name]}/Puppetfile: malformed boxen"
+            end
           else
             # Should we record unexpected Ruby code or just log it to stdout?
             args = args.map {|a| a.is_a?(String) ? "'#{a}'" : a}.join(', ')
-            $logger.warn "Unexpected invocation of #{name}(#{args})"
+            $logger.warn "#{@repo[:repo_name]}/Puppetfile: Unexpected invocation of #{name}(#{args})"
           end
         end
 

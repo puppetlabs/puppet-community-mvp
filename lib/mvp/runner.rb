@@ -77,8 +77,9 @@ class Mvp
           spinner = mkspinner("Analyzing Puppetfile module references...")
           bigquery.puppetfiles.each do |repo|
             spinner.update(title: "Analyzing [#{repo[:repo_name]}/Puppetfile]...")
-            rows = pfparser.parse(repo[:content])
-            bigquery.insert(:puppetfile_usage, rows)
+            rows = pfparser.parse(repo)
+            next if rows.empty?
+            bigquery.insert(:puppetfile_usage, rows, :github)
           end
           spinner.success('(OK)')
         end

@@ -75,13 +75,17 @@ class Mvp
 
         if [:all, :puppetfiles].include? target
           spinner = mkspinner("Analyzing Puppetfile module references...")
-          bigquery.puppetfiles.each do |repo|
-            spinner.update(title: "Analyzing [#{repo[:repo_name]}/Puppetfile]...")
-            rows = pfparser.parse(repo)
-            next if rows.empty?
-            bigquery.insert(:puppetfile_usage, rows, :github)
+          if pfparser.suitable?
+            bigquery.puppetfiles.each do |repo|
+              spinner.update(title: "Analyzing [#{repo[:repo_name]}/Puppetfile]...")
+              rows = pfparser.parse(repo)
+              next if rows.empty?
+              bigquery.insert(:puppetfile_usage, rows, :github)
+            end
+            spinner.success('(OK)')
+          else
+            spinner.error("(Not functional on Ruby #{RUBY_VERSION})")
           end
-          spinner.success('(OK)')
         end
 
         if [:all, :mirrors, :tables].include? target

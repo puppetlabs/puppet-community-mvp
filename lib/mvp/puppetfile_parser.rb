@@ -5,9 +5,13 @@ class Mvp
       @repo    = nil
     end
 
+    def suitable?
+      defined?(RubyVM::AbstractSyntaxTree)
+    end
+
     def parse(repo)
       # This only works on Ruby 2.6+
-      return unless defined?(RubyVM::AbstractSyntaxTree)
+      return unless suitable?
 
       begin
         root = RubyVM::AbstractSyntaxTree.parse(repo[:content])

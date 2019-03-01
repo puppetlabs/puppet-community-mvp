@@ -239,7 +239,7 @@ class Mvp
                 SELECT u.md5
                 FROM github_puppetfile_usage AS u
                 WHERE u.repo_name = f.repo_name
-              )'
+              ) AND LOWER(repo_name) NOT LIKE "%boxen%"'
       @dataset.query(sql)
     end
 

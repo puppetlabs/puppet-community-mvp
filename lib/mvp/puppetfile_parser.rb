@@ -31,6 +31,7 @@ class Mvp
     end
 
     def add_module(name, args)
+      name.gsub!('/', '-')
       case args
       when String, Symbol, NilClass
         @modules << {
@@ -94,15 +95,15 @@ class Mvp
           when :github
             # oh boxen, you so silly.
             # The order of the unpacking below *is* important.
-            name    = args.shift
+            modname = args.shift
             version = args.shift
             data    = args.shift || {}
 
             # this is gross but I'm not sure I actually care right now.
-            if (name.is_a? String and [String, NilClass].include? version.class and data.is_a? Hash)
+            if (modname.is_a? String and [String, NilClass].include? version.class and data.is_a? Hash)
               data[:boxen]   = :boxen
               data[:version] = version
-              add_module(name, data)
+              add_module(modname, data)
             else
               $logger.warn "#{@repo[:repo_name]}/Puppetfile: malformed boxen"
             end

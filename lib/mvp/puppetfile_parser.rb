@@ -31,6 +31,10 @@ class Mvp
     end
 
     def add_module(name, args)
+      unless name.is_a? String
+        $logger.warn "Non string module name in #{@repo[:repo_name]}/Puppetfile"
+        return nil
+      end
       name.gsub!('/', '-')
       case args
       when String, Symbol, NilClass

@@ -27,6 +27,19 @@ class Mvp
                                                           s.integer "count",   mode: :required
                                                         end
                                                       end
+
+      @puppetfile_usage = @dataset.table('github_puppetfile_usage') || @dataset.create_table('github_puppetfile_usage') do |table|
+                                                                          table.name        = 'Puppetfile Module Usage'
+                                                                          table.description = 'A list of all modules referenced in public Puppetfiles'
+                                                                          table.schema do |s|
+                                                                            s.string    "repo_name", mode: :required
+                                                                            s.string    "module",    mode: :required
+                                                                            s.string    "type",      mode: :required
+                                                                            s.string    "source"
+                                                                            s.string    "version"
+                                                                            s.string    "md5",       mode: :required
+                                                                          end
+                                                                        end
     end
 
     def truncate(entity)
@@ -176,12 +189,10 @@ class Mvp
         case entity[:type]
         when :view
           @dataset.table(entity[:name]).delete rescue nil # delete if exists
-          @dataset.create_view(entity[:name], entity[:query],
-                                :legacy_sql => true)
+          @dataset.create_view(entity[:name], entity[:query])
 
         when :table
           job = @dataset.query_job(entity[:query],
-                                :legacy_sql => true,
                                 :write      => 'truncate',
                                 :table      => @dataset.table(entity[:name], :skip_lookup => true))
           job.wait_until_done!
@@ -195,18 +206,17 @@ class Mvp
       end
     end
 
-    def insert(entity, data)
+    def insert(entity, data, suite = 'forge')
       return if @options[:noop]
 
-      table    = @dataset.table("forge_#{entity}")
+      table    = @dataset.table("#{suite}_#{entity}")
       response = table.insert(data)
 
       unless response.success?
-        errors = {}
         response.insert_errors.each do |err|
-          errors[err.row['slug']] = err.errors
+          $logger.error JSON.pretty_generate(err.row)
+          $logger.error JSON.pretty_generate(err.errors)
         end
-        $logger.error JSON.pretty_generate(errors)
       end
     end
 
@@ -217,6 +227,20 @@ class Mvp
     def get(entity, fields)
       raise 'pass fields as an array' unless fields.is_a? Array
       @dataset.query("SELECT #{fields.join(', ')} FROM forge_#{entity}")
+    end
+
+    def puppetfiles()
+      sql = 'SELECT f.repo_name, f.path, c.content, c.md5
+                FROM github_puppetfile_files AS f
+                JOIN github_puppetfile_contents AS c
+                  ON c.id = f.id
+
+              WHERE c.md5 NOT IN (
+                SELECT u.md5
+                FROM github_puppetfile_usage AS u
+                WHERE u.repo_name = f.repo_name
+              )'
+      @dataset.query(sql)
     end
 
     def unitemized()

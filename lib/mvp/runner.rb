@@ -74,26 +74,26 @@ class Mvp
           spinner.success('(OK)')
         end
 
-        if [:all, :puppetfiles].include? target
-          spinner = mkspinner("Analyzing Puppetfile module references...")
-          if pfparser.suitable?
-            bigquery.puppetfiles.each do |repo|
-              spinner.update(title: "Analyzing [#{repo[:repo_name]}/Puppetfile]...")
-              rows = pfparser.parse(repo)
-              next if rows.empty?
-              bigquery.insert(:puppetfile_usage, rows, :github)
-            end
-            spinner.success('(OK)')
-          else
-            spinner.error("(Not functional on Ruby #{RUBY_VERSION})")
-          end
-        end
-
         if [:all, :mirrors, :tables].include? target
           @options[:gcloud][:mirrors].each do |entity|
             spinner = mkspinner("Mirroring #{entity[:type]} #{entity[:name]} to BigQuery...")
             bigquery.mirror_table(entity)
             spinner.success('(OK)')
+          end
+        end
+
+        if [:all, :puppetfiles].include? target
+          spinner = mkspinner("Analyzing Puppetfile module references...")
+          if pfparser.suitable?
+            pfparser.sources = bigquery.module_sources
+            bigquery.puppetfiles.each do |repo|
+              spinner.update(title: "Analyzing [#{repo[:repo_name]}/Puppetfile]...")
+              rows = pfparser.parse(repo)
+              bigquery.insert(:puppetfile_usage, rows, :github)
+            end
+            spinner.success('(OK)')
+          else
+            spinner.error("(Not functional on Ruby #{RUBY_VERSION})")
           end
         end
 

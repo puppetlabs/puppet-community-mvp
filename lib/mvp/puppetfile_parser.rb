@@ -1,12 +1,22 @@
 class Mvp
   class PuppetfileParser
     def initialize(options = {})
+      @sources = {}
       @modules = []
       @repo    = nil
     end
 
     def suitable?
       defined?(RubyVM::AbstractSyntaxTree)
+    end
+
+    def sources=(modules)
+      modules.each do |row|
+        next unless row[:source]
+        next if row[:source] == 'UNKNOWN'
+
+        @sources[canonical_git_repo(row[:source])] = row[:slug]
+      end
     end
 
     def parse(repo)
@@ -26,8 +36,33 @@ class Mvp
       @modules.compact.map do |row|
         row[:repo_name] = repo[:repo_name]
         row[:md5]       = repo[:md5]
-        row
+        row[:module]    = canonical_name(row[:module], row[:source])
+        stringify(row)
       end
+    end
+
+    def stringify(row)
+      row.each do |key, value|
+        if value.is_a? RubyVM::AbstractSyntaxTree::Node
+          row[key] = :'#<programmatically generated via ruby code>'
+        end
+      end
+    end
+
+    def canonical_name(name, repo)
+      return name if name.include?('-')
+      repo = canonical_git_repo(repo)
+
+      return @sources[repo] if @sources.include?(repo)
+      name
+    end
+
+    def canonical_git_repo(repo)
+      return unless repo
+      return unless repo.is_a? String
+      repo.sub(/^git@github.com\:/, 'github.com/')
+          .sub(/^(git|https?)\:\/\//, '')
+          .sub(/\.git$/, '')
     end
 
     def add_module(name, args)

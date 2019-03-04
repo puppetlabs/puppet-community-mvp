@@ -208,6 +208,7 @@ class Mvp
 
     def insert(entity, data, suite = 'forge')
       return if @options[:noop]
+      return if data.empty?
 
       table    = @dataset.table("#{suite}_#{entity}")
       response = table.insert(data)
@@ -223,6 +224,10 @@ class Mvp
     def get(entity, fields)
       raise 'pass fields as an array' unless fields.is_a? Array
       @dataset.query("SELECT #{fields.join(', ')} FROM forge_#{entity}")
+    end
+
+    def module_sources()
+      get('modules', ['slug', 'source'])
     end
 
     def puppetfiles()

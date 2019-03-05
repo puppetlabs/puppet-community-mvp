@@ -89,6 +89,7 @@ class Mvp
             bigquery.puppetfiles.each do |repo|
               spinner.update(title: "Analyzing [#{repo[:repo_name]}/Puppetfile]...")
               rows = pfparser.parse(repo)
+              bigquery.delete(:puppetfile_usage, :repo_name, repo[:repo_name], :github)
               bigquery.insert(:puppetfile_usage, rows, :github)
             end
             spinner.success('(OK)')

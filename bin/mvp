@@ -18,7 +18,7 @@ or download and itemize each Forge module.
 
   * mirror [target]
       * Runs the download & then upload tasks.
-      * Optional targets: all, authors, modules, releases, validations, itemizations, tables
+      * Optional targets: all, authors, modules, releases, validations, itemizations, puppetfiles, tables
   * get | retrieve | download [target]
       * Downloads and caches data locally so you can run the stats task.
       * Optional targets: all, authors, modules, releases

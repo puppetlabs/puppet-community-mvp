@@ -160,6 +160,7 @@ class Mvp
               s.string    "dependencies",     mode: :repeated
               s.string    "file_uri",         mode: :required
               s.string    "file_md5",         mode: :required
+              s.string    "file_sha256",      mode: :required
               s.integer   "file_size",        mode: :required
               s.string    "changelog"
               s.string    "reference"

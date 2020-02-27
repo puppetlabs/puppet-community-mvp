@@ -104,6 +104,7 @@ class Mvp
         row['project_page']      = row['current_release']['metadata']['project_page']
         row['issues_url']        = row['current_release']['metadata']['issues_url']
         row['tasks']             = row['current_release']['tasks'].map{|task| task['name']} rescue []
+        row['plans']             = row['current_release']['plans'].map{|task| task['name']} rescue []
 
         row['release_count']     = row['releases'].count rescue 0
         row['releases']          = row['releases'].map{|r| r['version']} rescue []
@@ -123,9 +124,14 @@ class Mvp
         row['project_page']      = row['metadata']['project_page']
         row['issues_url']        = row['metadata']['issues_url']
         row['tasks']             = row['tasks'].map{|task| task['name']} rescue []
+        row['plans']             = row['plans'].map{|task| task['name']} rescue []
 
         simplify_metadata(row, row['metadata'])
-        row.delete('module')
+
+        # These items are just too big to store in the table
+        ['module', 'changelog', 'readme', 'reference'].each do |column|
+          row.delete(column)
+        end
       end
       data
     end

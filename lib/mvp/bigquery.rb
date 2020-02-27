@@ -80,6 +80,7 @@ class Mvp
               s.timestamp "created_at",       mode: :required
               s.timestamp "updated_at",       mode: :required
               s.string    "tasks",            mode: :repeated
+              s.string    "plans",            mode: :repeated
               s.string    "homepage_url"
               s.string    "project_page"
               s.string    "issues_url"
@@ -140,6 +141,7 @@ class Mvp
               s.timestamp "deleted_at"
               s.string    "deleted_for"
               s.string    "tasks",            mode: :repeated
+              s.string    "plans",            mode: :repeated
               s.string    "project_page"
               s.string    "issues_url"
               s.string    "source"
@@ -159,12 +161,9 @@ class Mvp
               s.boolean   "puppet_99x"
               s.string    "dependencies",     mode: :repeated
               s.string    "file_uri",         mode: :required
-              s.string    "file_md5",         mode: :required
-              s.string    "file_sha256",      mode: :required
+              s.string    "file_md5"
+              s.string    "file_sha256"
               s.integer   "file_size",        mode: :required
-              s.string    "changelog"
-              s.string    "reference"
-              s.string    "readme"
               s.string    "license"
               s.string    "metadata",         mode: :required
             end
@@ -215,8 +214,9 @@ class Mvp
       response = table.insert(data)
 
       unless response.success?
+        $logger.error '========================================================================='
         response.insert_errors.each do |err|
-          $logger.error JSON.pretty_generate(err.row)
+          $logger.debug JSON.pretty_generate(err.row.reject {|k,v| ['metadata'].include? k})
           $logger.error JSON.pretty_generate(err.errors)
         end
       end

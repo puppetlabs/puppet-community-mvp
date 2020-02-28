@@ -19,7 +19,8 @@ class Mvp
 
     def draw_graph(series, width, title = nil)
       series.compact!
-      graph    = []
+      width = [width, series.size].min
+      graph = []
       (bins, freqs) = series.histogram(:bin_width => width)
 
       bins.each_with_index do |item, index|
@@ -44,6 +45,20 @@ class Mvp
       days_ago(datestr)/365
     end
 
+    def current_releases
+      return @current_releases if @current_releases
+
+      data_m  = load('modules').reject {|m| m['owner'] == 'puppetlabs' }
+      data_r  = load('releases').reject {|m| m['owner'] == 'puppetlabs' }
+
+      @current_releases = data_m.map {|mod|
+        name = mod['slug']
+        curr = mod['releases'].first
+
+        data_r.find {|r| r['slug'] == "#{name}-#{curr}" }
+      }.compact
+    end
+
     def tally_author_info(releases, target, scope='module_count')
       # update the author records with the fields we need
       target.each do |author|
@@ -52,7 +67,7 @@ class Mvp
       end
 
       releases.each do |mod|
-        username = mod['module']['owner']['username']
+        username = mod['owner']
         score    = mod['validation_score']
         author   = target.select{|m| m['username'] == username}.first
 
@@ -111,9 +126,10 @@ class Mvp
     end
 
     def modules()
-      data_m  = load('modules').reject {|m| m['owner']['username'] == 'puppetlabs' }
+      data_m  = load('modules').reject {|m| m['owner'] == 'puppetlabs' }
       data_a  = load('authors').reject {|u| u['username'] == 'puppetlabs' or u['module_count'] == 0}
-      current = data_m.map {|m| m['current_release'] }
+
+      current = current_releases
 
       tally_author_info(current, data_a, 'module_count')
 
@@ -155,7 +171,7 @@ class Mvp
     end
 
     def releases()
-      data_r  = load('releases').reject {|m| m['module']['owner']['username'] == 'puppetlabs' }
+      data_r  = load('releases').reject {|m| m['owner'] == 'puppetlabs' }
       data_a  = load('authors').reject {|u| u['username'] == 'puppetlabs' or u['module_count'] == 0}
 
       tally_author_info(data_r, data_a, 'release_count')
@@ -236,12 +252,12 @@ class Mvp
     end
 
     def relationships()
-      data_m  = load('modules').reject {|m| m['owner']['username'] == 'puppetlabs' }
       data_a  = load('authors').reject {|u| u['username'] == 'puppetlabs' or u['module_count'] == 0}
-      current = data_m.map {|m| m['current_release'] }
+      current = current_releases.dup
 
       current.each do |mod|
-          mod['metadata']['dependants'] = []
+        mod['metadata'] = JSON.parse(mod['metadata'])
+        mod['metadata']['dependants'] = []
       end
       current.each do |mod|
         mod['metadata']['dependencies'].each do |dependency|
@@ -257,7 +273,7 @@ class Mvp
         count  = mod['metadata']['dependants'].count
         next unless count > 0
 
-        author = data_a.select{|m| m['username'] == mod['module']['owner']['username']}.first
+        author = data_a.select{|m| m['username'] == mod['owner']}.first
         author['dependants'] << count
       end
       data_a.each { |a| a['average_dependants'] = average(a['dependants']) }
@@ -280,6 +296,7 @@ class Mvp
                                         author['module_count'],
                                         author['release_count'] ]
       end
+      puts
     end
 
     def github()
@@ -328,7 +345,7 @@ class Mvp
     end
 
     def validations()
-      puts 'got nothing for you yet'
+      puts 'No validations yet'
     end
 
     def test()

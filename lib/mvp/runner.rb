@@ -109,7 +109,7 @@ class Mvp
     def stats(target)
       stats = Mvp::Stats.new(@options)
 
-      [:authors, :modules, :releases, :relationships, :github, :validations].each do |thing|
+      [:authors, :modules, :releases, :relationships, :validations].each do |thing|
         next unless [:all, thing].include? target
         stats.send(thing)
       end

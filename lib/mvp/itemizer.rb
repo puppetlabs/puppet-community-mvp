@@ -12,7 +12,7 @@ class Mvp
 
     def run!(data, uploader)
       data.each do |mod|
-        modname = mod['slug']
+        modname = mod['name']
         version = mod['version']
         return if uploader.version_itemized?(modname, version)
 
@@ -41,7 +41,9 @@ class Mvp
         File.open(filename, "w") do |file|
           file << HTTParty.get( "#{@forge}/v3/files/#{filename}" )
         end
-        system("tar -xf #{filename}")
+        # Why is tar terrible?
+        FileUtils.mkdir("#{modname}-#{version}")
+        system("tar -xf #{filename} -C #{modname}-#{version} --strip-components=1")
         FileUtils.rm(filename)
       end
     end
@@ -60,6 +62,39 @@ class Mvp
         }
         runner = Puppet_X::Binford2k::Itemize::Runner.new(options).run!
         runner.results
+      end
+    end
+
+    def analyze(mod, script, debug)
+      require 'open3'
+      require 'json'
+
+      # sanitize an environment
+      env = {'mvp_script' => script}
+      mod.each do |key, value|
+        env["mvp_#{key}"] = value.to_s
+      end
+
+      downloads = mod[:downloads]
+      Dir.mktmpdir('mvp') do |path|
+        download(path, "#{mod[:owner]}-#{mod[:name]}", mod[:version])
+
+        rows = []
+        Dir.chdir("#{path}/#{mod[:owner]}-#{mod[:name]}-#{mod[:version]}") do
+          if debug
+            exit(1) unless system(env, ENV['SHELL'])
+          end
+
+          stdout, stderr, status = Open3.capture3(env, script)
+
+          if status.success?
+            rows = JSON.parse(stdout)
+          else
+            $logger.error stderr
+          end
+        end
+
+        return rows unless rows.empty?
       end
     end
 

@@ -106,6 +106,33 @@ class Mvp
       end
     end
 
+    def analyze
+      bigquery = Mvp::Bigquery.new(@options)
+      itemizer = Mvp::Itemizer.new(@options)
+
+      begin
+        spinner = mkspinner("Analyzing modules...")
+        modules = bigquery.get(:modules, [:owner, :name, :version, :downloads])
+        modules = modules.sample(@options[:count]) if @options[:count]
+
+        require 'csv'
+        csv_string = CSV.generate do |csv|
+          modules.each do |mod|
+            spinner.stop if @options[:debug]
+            rows = itemizer.analyze(mod, @options[:script], @options[:debug])
+            spinner.start if @options[:debug]
+
+            next unless rows
+            spinner.update(title: mod[:name])
+            rows.each {|row| csv << row}
+          end
+        end
+
+        File.write(@options[:output_file], csv_string)
+        spinner.success('(OK)')
+      end
+    end
+
     def stats(target)
       stats = Mvp::Stats.new(@options)
 

@@ -24,6 +24,10 @@ or download and itemize each Forge module.
       * Optional targets: all, authors, modules, releases
   * stats
       * Print out a summary of interesting stats.
+  * analyze <script file>
+      * Run a specified script to analyze each module to generate arbitrary stats
+      * Writes output to a csv file, analyzed.csv by default
+
 "
 
   opts.on("-f FORGEAPI", "--forgeapi FORGEAPI", "Forge API server. Rarely needed.") do |arg|
@@ -58,6 +62,14 @@ or download and itemize each Forge module.
     options[:output_file] = arg
   end
 
+  opts.on("--script SCRIPT", "The script file to analyze a module. See docs for interface.") do |arg|
+    options[:script] = arg
+  end
+
+  opts.on("--count N", "For debugging. Select a random list of this many modules to analyze.") do |arg|
+    options[:count] = arg.to_i
+  end
+
   opts.on("-d", "--debug", "Display extra debugging information.") do
     options[:debug] = true
   end
@@ -85,10 +97,17 @@ options[:gcloud][:dataset] ||= 'community'
 options[:gcloud][:project] ||= 'puppet'
 options[:gcloud][:keyfile] ||= '~/.mvp/credentials.json'
 
+options[:script]             = File.expand_path(options[:script]) if options[:script]
 options[:cachedir]           = File.expand_path(options[:cachedir])
 options[:github_data]        = File.expand_path(options[:github_data])
 options[:gcloud][:keyfile]   = File.expand_path(options[:gcloud][:keyfile])
 FileUtils.mkdir_p(options[:cachedir])
+
+command, target = ARGV
+case command
+when 'analyze'
+  options[:output_file] ||= 'analyzed.csv'
+end
 
 $logger           = Logger::new(STDOUT)
 $logger.level     = options[:debug] ? Logger::DEBUG : Logger::INFO
@@ -96,7 +115,6 @@ $logger.formatter = proc { |severity,datetime,progname,msg| "#{severity}: #{msg}
 
 runner = Mvp::Runner.new(options)
 
-command, target = ARGV
 case command
 when 'get', 'retrieve', 'download'
   target ||= :all
@@ -109,6 +127,9 @@ when 'mirror'
 when 'stats'
   target ||= :all
   runner.stats(target.to_sym)
+
+when 'analyze'
+  runner.analyze
 
 when 'test'
   runner.test

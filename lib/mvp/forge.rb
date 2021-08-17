@@ -128,8 +128,8 @@ class Mvp
 
         simplify_metadata(row, row['metadata'])
 
-        # These items are just too big to store in the table
-        ['module', 'changelog', 'readme', 'reference'].each do |column|
+        # These items are just too big to store in the table, and the malware scan isn't done yet
+        ['module', 'changelog', 'readme', 'reference', 'malware_scan'].each do |column|
           row.delete(column)
         end
       end

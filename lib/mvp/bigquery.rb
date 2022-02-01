@@ -88,6 +88,7 @@ class Mvp
               s.boolean   "supported"
               s.string    "endorsement"
               s.string    "module_group"
+              s.boolean   "premium"
               s.boolean   "pdk"
               s.string    "operatingsystem",  mode: :repeated
               s.integer   "release_count",    mode: :required

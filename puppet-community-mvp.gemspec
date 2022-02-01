@@ -2,7 +2,7 @@ require 'date'
 
 Gem::Specification.new do |s|
   s.name              = "puppet-community-mvp"
-  s.version           = "0.0.6"
+  s.version           = "0.0.7"
   s.date              = Date.today.to_s
   s.summary           = "Generate some stats about the Puppet Community."
   s.license           = 'Apache 2'

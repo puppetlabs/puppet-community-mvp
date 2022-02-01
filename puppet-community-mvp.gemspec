@@ -2,13 +2,12 @@ require 'date'
 
 Gem::Specification.new do |s|
   s.name              = "puppet-community-mvp"
-  s.version           = "0.0.7"
+  s.version           = "0.0.8"
   s.date              = Date.today.to_s
   s.summary           = "Generate some stats about the Puppet Community."
-  s.license           = 'Apache 2'
+  s.license           = 'Apache-2.0'
   s.email             = "ben.ford@puppet.com"
   s.authors           = ["Ben Ford"]
-  s.has_rdoc          = false
   s.require_path      = "lib"
   s.executables       = %w( mvp )
   s.files             = %w( README.md LICENSE )

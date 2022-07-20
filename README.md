@@ -51,6 +51,8 @@ variables:
 * `mvp_name` -- the name of the module itself
 * `mvp_version` -- the current version of the module
 * `mvp_downloads` -- the number of downloads this module has. A *rough* estimation of popularity
+* `mvp_updated_at` -- the date of the last release
+* `mvp_deprecated_at` -- nil or the date the module was deprecated
 
 The script should print an array of arrays in JSON format to STDOUT. These will be
 combined to make a CSV file, the columns of which are defined by the data you

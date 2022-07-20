@@ -112,7 +112,7 @@ class Mvp
 
       begin
         spinner = mkspinner("Analyzing modules...")
-        modules = bigquery.get(:modules, [:owner, :name, :version, :downloads])
+        modules = bigquery.get(:modules, [:owner, :name, :version, :downloads, :updated_at, :deprecated_at])
         modules = modules.sample(@options[:count]) if @options[:count]
 
         require 'csv'

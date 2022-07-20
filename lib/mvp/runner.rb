@@ -107,6 +107,8 @@ class Mvp
     end
 
     def analyze
+      raise "Output file #{@options[:output_file]} exists" if File.file? @options[:output_file]
+
       bigquery = Mvp::Bigquery.new(@options)
       itemizer = Mvp::Itemizer.new(@options)
 
@@ -116,19 +118,19 @@ class Mvp
         modules = modules.sample(@options[:count]) if @options[:count]
 
         require 'csv'
-        csv_string = CSV.generate do |csv|
-          modules.each do |mod|
-            spinner.stop if @options[:debug]
+        modules.each do |mod|
+          spinner.stop if @options[:debug]
+          csv_string = CSV.generate do |csv|
             rows = itemizer.analyze(mod, @options[:script], @options[:debug])
-            spinner.start if @options[:debug]
-
-            next unless rows
-            spinner.update(title: mod[:name])
-            rows.each {|row| csv << row}
+            rows&.each {|row| csv << row}
           end
+          spinner.start if @options[:debug]
+          next if csv_string.empty?
+
+          spinner.update(title: mod[:name])
+          File.write(@options[:output_file], csv_string, mode: 'a+')
         end
 
-        File.write(@options[:output_file], csv_string)
         spinner.success('(OK)')
       end
     end
